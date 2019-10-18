@@ -1,0 +1,2 @@
+module HelloVueHelper
+end

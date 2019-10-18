@@ -1,0 +1,96 @@
+version: "3.7"
+
+services:
+  # Railsのサンプルアプリケーション
+  app:
+    build: .
+
+    # プロセスが正しく後始末されるようにする
+    init: true
+
+    ports:
+      - "3000:3000"
+
+    volumes:
+      - .:/app
+      - /app/node_modules
+    stdin_open: true
+    tty: true
+    environment:
+      # appコンテナではSpringを無効にする
+      - DISABLE_SPRING=1
+      # Webpackのアセットをwebpack-dev-serverから取得する
+      - WEBPACKER_DEV_SERVER_HOST=webpack
+      - WEBPACKER_DEV_SERVER_PUBLIC=localhost:3035
+      # dbコンテナに接続する
+      # - DATABASE_URL=postgresql://postgres:docker-rails-example-app@db/dockerrailsexample_development
+      - DATABASE_URL=mysql2://root:rails-example-app@db/dockerrailsexample_development
+
+    depends_on:
+      - db
+
+  # Springサーバー
+  spring:
+    build: .
+
+    command: spring server
+    entrypoint: /docker-entrypoint-spring.sh
+
+    # プロセスが正しく後始末されるようにする
+    init: true
+
+    # spring statusやspring stopが正しく動作するようにする
+    pid: host
+
+    environment:
+      - SPRING_SOCKET=/tmp/spring/spring.sock
+      # dbコンテナに接続する
+      # - DATABASE_URL=postgresql://postgres:docker-rails-example-app@db/dockerrailsexample_development
+      - DATABASE_URL=mysql2://root:rails-example-app@db/dockerrailsexample_development
+
+    volumes:
+      - .:/app
+      # node_modulesはイメージにあるものを使う
+      - /app/node_modules
+      - spring-tmp:/tmp/spring
+  # webpack-dev-server
+  webpack:
+    build: .
+
+    command: ruby ./bin/webpack-dev-server
+
+    ports:
+      - "3035:3035"
+
+    environment:
+      # コンテナの外からもアクセスできるようにする
+      - WEBPACKER_DEV_SERVER_HOST=0.0.0.0
+
+    volumes:
+      - .:/app
+      # node_modulesはイメージにあるものを使う
+      - /app/node_modules
+  db:
+    # image: postgres:11.2
+    image: mysql:8.0.15
+
+    # defaultで4biteUTF-8と古い認証方式を扱うようにする
+    command: >-
+      --character-set-server=utf8mb4
+      --default-authentication-plugin=mysql_native_password
+
+
+    environment:
+      # - POSTGRES_DB=dockerrailsexample_development
+      # - POSTGRES_PASSWORD=docker-rails-example-app
+      - MYSQL_DATABASE=dockerrailsexample_development
+      - MYSQL_ROOT_PASSWORD=rails-example-app
+
+    volumes:
+      - db-data:/var/lib/mysql
+
+volumes:
+  # Springの一時ファイルを共有するvolume
+  spring-tmp:
+  # DBの格納先
+  db-data:
